@@ -120,16 +120,10 @@ resource "aws_route_table_association" "a-rtb-subnet-b" {
 resource "aws_security_group" "kaseo-web-server-sg" {
   name   = "web-server-sg"
   vpc_id = aws_vpc.kaseo-restaurant-ltd.id
+
   ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    description = "HTTPS"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 80
-    to_port     = 80
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     description = "HTTP"
     cidr_blocks = ["0.0.0.0/0"]
@@ -148,17 +142,10 @@ resource "aws_security_group" "kaseo-web-server-sg" {
     description = "RDP"
     cidr_blocks = [var.my_ip]
   }
-  # Allow all outbound traffic
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = {
-    Name : "ALB SG"
-  }
 
+  tags = {
+    Name : "Webserver SG"
+  }
 }
 
 # Database SG
@@ -176,6 +163,36 @@ resource "aws_security_group" "kaseo-db" {
 
   tags = {
     Name = "DB SG"
+  }
+}
+
+# ELB SG
+resource "aws_security_group" "kaseo-alb" {
+  name        = "alb-sg"
+  description = "Allow TLS traffic to webservers"
+  vpc_id      = aws_vpc.kaseo-restaurant-ltd.id
+  # Ingress
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ALB SG"
   }
 }
 
@@ -197,83 +214,39 @@ data "aws_ami" "latest-amazon-linux-image" {
     values = ["ebs"]
   }
 }
-# Create Instance
-resource "aws_instance" "kaseo-server" {
-  ami           = data.aws_ami.latest-amazon-linux-image.id
-  instance_type = var.instance_type
 
-  subnet_id              = aws_subnet.kaseo-public-sub-1.id
-  vpc_security_group_ids = [aws_security_group.kaseo-web-server-sg.id]
-  availability_zone      = "eu-west-1a"
-
-  associate_public_ip_address = true
-  key_name                    = "kwa-kaseo"
-  tags = {
-    Name = "Kaseo Webserver"
+# Launch configuration
+resource "aws_launch_configuration" "kaseo-launch-config" {
+  name          = "web_config"
+  image_id      = data.aws_ami.latest-amazon-linux-image.id
+  instance_type = "t2.micro"
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-# Create ALB
-resource "aws_elb" "kaseo-alb" {
-  name               = "kase-manchester-alb"
-  availability_zones = ["eu-west-1a", "us-west-1b"]
+# Autoscaling Group
+resource "aws_autoscaling_group" "kaseo-autoscaling" {
+  name                      = "kaseo-restaurants-manchester"
+  availability_zones        = ["eu-west-1a", "eu-west-1b"]
+  min_size                  = 2
+  max_size                  = 6
+  health_check_grace_period = 300
+  health_check_type         = "ELB"
+  desired_capacity          = 4
+  force_delete              = true
+  launch_configuration      = aws_launch_configuration.kaseo-launch-config.name
 
-  access_logs {
-    bucket        = "kaseo-alb-logs"
-    bucket_prefix = "manchester"
-    interval      = 60
+  lifecycle {
+    create_before_destroy = true
+  }
+  tag {
+    key                 = "name"
+    value               = "kaseo-manchester-ag"
+    propagate_at_launch = true
   }
 
-  listener {
-    instance_port     = 8000
-    instance_protocol = "http"
-    lb_port           = 80
-    lb_protocol       = "http"
+  timeouts {
+    delete = "15m"
   }
-
-  listener {
-    instance_port      = 8000
-    instance_protocol  = "http"
-    lb_port            = 443
-    lb_protocol        = "https"
-    ssl_certificate_id = ""
-  }
-
-  health_check {
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 3
-    target              = "HTTP:8000/"
-    interval            = 30
-  }
-
-  instances                   = [data.aws_ami.latest-amazon-linux-image.id]
-  cross_zone_load_balancing   = true
-  idle_timeout                = 400
-  connection_draining         = true
-  connection_draining_timeout = 400
-
-  tags = {
-    Name = "kaseo-restaurants-elb"
-  }
-}
-
-resource "aws_eip" "lb" {
-  instance = data.aws_ami.latest-amazon-linux-image.id
-  vpc      = true
-}
-
-
-# Outputs
-output "vpc-id" {
-  value = aws_vpc.kaseo-restaurant-ltd.id
-}
-output "db-id-AZ-1" {
-  value = aws_subnet.kaseo-private-db-1.id
-}
-output "db-id-AZ-2" {
-  value = aws_subnet.kaseo-private-db-2.id
-}
-output "aws-ami-id" {
-  value = data.aws_ami.latest-amazon-linux-image.id
 }
