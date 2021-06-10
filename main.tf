@@ -233,3 +233,81 @@ resource "aws_autoscaling_group" "kaseo-autoscaling" {
     delete = "15m"
   }
 }
+
+# ALB Bucket to store Logs
+resource "aws_s3_bucket" "kaseo-restaurant-logs" {
+  bucket = "kaseo-logs-from-alb"
+  acl    = "private"
+  tags = {
+    Name = "Kaseo Restaurant"
+    Area = "Manchester"
+  }
+}
+
+# ALB
+module "alb" {
+  source  = "terraform-aws-modules/alb/aws"
+  version = "~> 6.0"
+
+  name = "kaseo-restaurants-alb"
+
+  load_balancer_type = "application"
+
+  vpc_id          = aws_vpc.kaseo-restaurant-ltd.id
+  subnets         = ["subnet-066a1d3ba010d66be", "subnet-0fd15976c2f016b7e"]
+  security_groups = ["sg-0dc8d12f43eb37fc0"]
+
+  access_logs = {
+    bucket = "kaseo-restaurant-logs"
+  }
+
+  target_groups = [
+    {
+      name_prefix      = "pref-"
+      backend_protocol = "HTTP"
+      backend_port     = 80
+      target_type      = "instance"
+      targets = [
+        {
+          target_id = ""
+          port      = 80
+        },
+        {
+          target_id = ""
+          port      = 8080
+        }
+      ]
+    }
+  ]
+
+  https_listeners = [
+    {
+      port               = 443
+      protocol           = "HTTPS"
+      certificate_arn    = ""
+      target_group_index = 0
+    }
+  ]
+
+  http_tcp_listeners = [
+    {
+      port               = 80
+      protocol           = "HTTP"
+      target_group_index = 0
+    }
+  ]
+
+  tags = {
+    Name = "Kaseo Restaurants Manchester"
+  }
+}
+
+output "SG" {
+  value = aws_security_group.kaseo-alb.id
+}
+output "subnet-1" {
+  value = aws_subnet.kaseo-public-sub-1.id
+}
+output "subnet-2" {
+  value = aws_subnet.kaseo-public-sub-2.id
+}
