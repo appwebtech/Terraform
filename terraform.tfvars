@@ -1,3 +1,4 @@
+#vpc_id         = aws_vpc.kaseo-restaurant-ltd.id
 vpc_cidr_block = "10.0.0.0/16"
 kaseo-vpc      = "kaseo manchester area"
 my_ip          = "192.168.1.98/32"
