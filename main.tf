@@ -311,3 +311,82 @@ output "subnet-1" {
 output "subnet-2" {
   value = aws_subnet.kaseo-public-sub-2.id
 }
+
+# MySQL DB
+module "db" {
+  source  = "terraform-aws-modules/rds/aws"
+  version = "~> 2.0"
+
+  identifier = "kaseodb"
+
+  engine            = "mysql"
+  engine_version    = "5.7.19"
+  instance_class    = "db.t2.large"
+  allocated_storage = 5
+
+  name     = "kaseodb"
+  username = "joseph"
+  password = "NotaRealPassword"
+  port     = "3306"
+
+  iam_database_authentication_enabled = true
+
+  vpc_security_group_ids = ["sg-0cedddd2a457c94fc"]
+
+  maintenance_window = "Mon:00:00-Mon:02:00"
+  backup_window      = "03:00-04:00"
+
+  monitoring_interval    = "30"
+  monitoring_role_name   = "Kaseo-RDS-Monitoring-Role"
+  create_monitoring_role = true
+  multi_az               = true
+
+  tags = {
+    Owner       = "KaseoDB"
+    Environment = "Manchester"
+  }
+
+  subnet_ids = ["subnet-0f80b56f22f99864d", "subnet-0f4413354d1be32fa"]
+
+  # DB parameter group
+  family = "mysql5.7"
+
+  # DB option group
+  major_engine_version = "5.7"
+
+  # Snapshot name upon DB deletion
+  final_snapshot_identifier = "kaseo-snapshot"
+
+  # Database Deletion Protection
+  deletion_protection = true
+
+  parameters = [
+    {
+      name  = "character_set_client"
+      value = "utf8"
+    },
+    {
+      name  = "character_set_server"
+      value = "utf8"
+    }
+  ]
+
+  options = [
+    {
+      option_name = "MARIADB_AUDIT_PLUGIN"
+
+      option_settings = [
+        {
+          name  = "SERVER_AUDIT_EVENTS"
+          value = "CONNECT"
+        },
+        {
+          name  = "SERVER_AUDIT_FILE_ROTATIONS"
+          value = "37"
+        },
+      ]
+    },
+  ]
+}
+
+#
