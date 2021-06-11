@@ -696,13 +696,16 @@ Since we have ALB logs in an S3 bucket, we may want to query them just to have a
 
 We may also need an S3 bucket to store documents like contracts, payslips, etc for associates who work for Kaseo Restaurants Ltd. We can set up a local identity broker to authenticate associates using the on-prem identity store. After authenticating locally, the identity broker will call the AWS STS (Security Token Service) Assume Role to get temporary credentials which would enable access to an S3 bucket where the associate documents are stored.
 
-On-premises Infrastructure.
+**On-premises Infrastructure.**
+
 ![corporate](./images/on-premises.png)
 
-Cloud Infrastructure.
+**Cloud Infrastructure.**
+
 ![VPC-without-corporate](./images/vpc_6.png)
 
-Cloud with on-premises infrastructure.
+**Cloud with on-premises infrastructure.**
+
 ![VPC-with-on-prem](./images/vpc_7.png)
 
 ### Deployment of Servers 
